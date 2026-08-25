@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+.card {
+  @apply bg-white rounded-2xl border border-slate-200 shadow-sm p-5;
+}
+
+.badge-low {
+  @apply bg-emerald-100 text-emerald-700;
+}
+.badge-medium {
+  @apply bg-amber-100 text-amber-700;
+}
+.badge-high {
+  @apply bg-rose-100 text-rose-700;
+}

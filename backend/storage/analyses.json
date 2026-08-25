@@ -1,0 +1,31 @@
+[
+  {
+    "symbol": "AAPL",
+    "name": "Apple Inc.",
+    "generatedAt": "2026-08-24T12:03:01.019665+00:00",
+    "priceAtAnalysis": 309.35,
+    "analysis": {
+      "companySummary": "Apple Inc. is a leading technology company in the Consumer Electronics industry that designs, manufactures, and sells consumer devices alongside digital services and platform platforms globally. The company operates a massive ecosystem comprising hardware like the iPhone, Mac, iPad, and wearables, supported by a subscription and advertising business model. It currently trades at $309.35 with a market capitalization of over $4.5 trillion.",
+      "bullCase": [
+        "Delivering solid top-line performance with a year-over-year revenue growth rate of 16.4%.",
+        "Highly diversified product and services ecosystem ranging from popular hardware (iPhone, Mac, Wearables) to recurring subscription services (Apple Music, iCloud, App Store).",
+        "Commands a dominant market presence reflected in its $4.51 trillion market capitalization and strong brand loyalty."
+      ],
+      "bearCase": [
+        "Relatively elevated valuation with a P/E ratio of 35.48 while trading closer to its 52-week high of $344.57 than its low of $224.69.",
+        "A notable Debt to Equity ratio of 78.45 indicates a highly leveraged capital structure.",
+        "Heavy exposure to consumer discretionary spending dynamics across its global markets."
+      ],
+      "risks": [
+        "Supply chain and manufacturing vulnerabilities associated with global hardware production across smartphones, tablets, and wearables.",
+        "Regulatory and legal scrutiny regarding platform monetization, App Store rules, and third-party licensing arrangements.",
+        "Potential deceleration in consumer upgrades across core hardware lines like iPhone, iPad, and Mac."
+      ],
+      "keyTakeaways": [
+        "Apple maintains a dominant position in the technology sector with a market cap of approximately $4.51 trillion.",
+        "The business achieves a balance of steady 16.4% YoY revenue growth through hardware sales and expanding subscription platforms.",
+        "Investors must weigh its robust product ecosystem against its premium P/E valuation of 35.48 and leverage profile."
+      ]
+    }
+  }
+]
