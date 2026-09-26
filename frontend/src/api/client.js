@@ -1,6 +1,7 @@
 import axios from 'axios'
+import { apiBaseUrl } from './baseUrl'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'
+const API_BASE_URL = apiBaseUrl(import.meta.env.VITE_API_BASE_URL)
 
 const client = axios.create({
   baseURL: API_BASE_URL,
@@ -9,7 +10,12 @@ const client = axios.create({
 
 // Normalize errors so components can just read `err.message`
 client.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    if (typeof res.data === 'string' && res.data.trimStart().startsWith('<')) {
+      return Promise.reject(new Error('The API returned a web page instead of data. Check the backend URL configuration.'))
+    }
+    return res
+  },
   (err) => {
     const message =
       err.response?.data?.error ||

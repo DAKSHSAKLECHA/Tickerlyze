@@ -196,3 +196,26 @@ they aren't included in this scaffold since they depend on your own data.)
 - JSON-file storage is intentionally simple for this scope. For multi-user
   or production use, swap `utils/json_store.py` for a real database without
   touching the route/service layers.
+
+## Deploy: Railway API and Vercel frontend
+
+1. Railway: deploy the repository with Root Directory `/backend`. Use start
+   command `gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120`.
+   Dependencies come from `requirements.txt`. Set `GEMINI_API_KEY`, a model
+   available to your Google account in `GEMINI_MODEL`, and `FLASK_DEBUG=False`.
+2. Generate a public backend domain. Check `https://YOUR-BACKEND/api/health`:
+   it should return `{"status":"ok"}`. `/` is not a frontend page on this API.
+3. Vercel: import the repository, choose Root Directory `frontend`, preset
+   Vite, build `npm run build`, output `dist`. Set `VITE_API_BASE_URL` to
+   `https://YOUR-BACKEND/api` before deploying. Redeploy after changing it.
+4. On Railway set `CORS_ORIGINS=https://YOUR-FRONTEND.vercel.app` (no path).
+   Multiple origins can be comma-separated. Keep the Gemini key on Railway.
+5. For persistent watchlists/analyses, attach a Railway volume at `/data` and
+   set `STORAGE_DIR=/data`. Otherwise deployment restarts can lose JSON data.
+   Keep one worker and one replica with the current file storage design.
+
+Local development: run `python app.py` inside `backend`, then `npm run dev`
+inside `frontend`. Set `VITE_API_BASE_URL=/api` in `frontend/.env` and restart
+Vite. Its proxy forwards `/api` to `127.0.0.1:5000`. Ensure that port runs
+Tickerlyze, not another project's backend. Health is `/api/health`; dashboard
+is `/api/dashboard/overview`. A 404 on these indicates the wrong server or URL.
