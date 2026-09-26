@@ -1,7 +1,8 @@
 import axios from 'axios'
 import { apiBaseUrl } from './baseUrl'
 
-const API_BASE_URL = apiBaseUrl(import.meta.env.VITE_API_BASE_URL)
+// Production uses the same-origin Vercel proxy; local development may override it.
+const API_BASE_URL = import.meta.env.PROD ? '/api' : apiBaseUrl(import.meta.env.VITE_API_BASE_URL)
 
 const client = axios.create({
   baseURL: API_BASE_URL,

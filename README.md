@@ -219,3 +219,12 @@ inside `frontend`. Set `VITE_API_BASE_URL=/api` in `frontend/.env` and restart
 Vite. Its proxy forwards `/api` to `127.0.0.1:5000`. Ensure that port runs
 Tickerlyze, not another project's backend. Health is `/api/health`; dashboard
 is `/api/dashboard/overview`. A 404 on these indicates the wrong server or URL.
+
+### Current Vercel API connection
+
+Production frontend calls `/api` on its own origin. `frontend/vercel.json`
+proxies those requests to `https://tickerlyze-production.up.railway.app`.
+`VITE_API_BASE_URL` now only applies during local development; remove the
+production variable to avoid confusion. If the Railway domain changes, update
+`frontend/vercel.json`. This supersedes the direct-browser API setup above.
+Both Railway (dependency update) and Vercel (proxy/client update) need redeploying.
