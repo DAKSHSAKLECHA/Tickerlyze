@@ -1,10 +1,6 @@
 """Wraps yfinance calls and normalizes the data we care about."""
 import yfinance as yf
-from datetime import datetime, timedelta
-
-
-class StockNotFoundError(Exception):
-    pass
+from services.market_cache import cached_market_data, MarketDataUnavailable, StockNotFoundError
 
 
 def _safe_get(info, *keys, default=None):
@@ -15,15 +11,29 @@ def _safe_get(info, *keys, default=None):
     return default
 
 
+@cached_market_data(ttl=300)
 def get_quote(ticker_symbol):
     """Return current price + key valuation metrics for a ticker."""
     ticker_symbol = ticker_symbol.upper().strip()
+    if ticker_symbol.startswith("^"):
+        ticker = yf.Ticker(ticker_symbol)
+        history = ticker.history(period="5d", raise_errors=True)
+        if history.empty:
+            raise MarketDataUnavailable("No market index prices available.")
+        closes = history["Close"].dropna()
+        if len(closes) < 2:
+            raise MarketDataUnavailable("Insufficient market index prices.")
+        current, previous = float(closes.iloc[-1]), float(closes.iloc[-2])
+        change = current - previous
+        return {"symbol": ticker_symbol, "currentPrice": current,
+                "previousClose": previous, "change": round(change, 2),
+                "changePercent": round(change / previous * 100, 2) if previous else None}
     ticker = yf.Ticker(ticker_symbol)
 
     try:
         info = ticker.info
     except Exception as e:
-        raise StockNotFoundError(f"Could not fetch data for '{ticker_symbol}': {e}")
+        raise
 
     if not info or info.get("regularMarketPrice") is None and info.get("currentPrice") is None:
         # yfinance sometimes still returns a sparse dict for invalid tickers
@@ -69,9 +79,10 @@ def get_quote(ticker_symbol):
     return quote
 
 
+@cached_market_data(ttl=300)
 def get_history(ticker_symbol, period="6mo", interval="1d"):
     ticker = yf.Ticker(ticker_symbol.upper().strip())
-    hist = ticker.history(period=period, interval=interval)
+    hist = ticker.history(period=period, interval=interval, raise_errors=True)
     if hist.empty:
         raise StockNotFoundError(f"No historical data for '{ticker_symbol}'.")
     hist = hist.reset_index()
@@ -89,6 +100,7 @@ def get_history(ticker_symbol, period="6mo", interval="1d"):
     ]
 
 
+@cached_market_data(ttl=300)
 def get_next_earnings_date(ticker_symbol):
     ticker = yf.Ticker(ticker_symbol.upper().strip())
     try:
@@ -132,6 +144,7 @@ def get_next_earnings_date(ticker_symbol):
     return dates[0] if dates else None
 
 
+@cached_market_data(ttl=300)
 def search_tickers(query):
     """Best-effort ticker search using yfinance's search endpoint."""
     try:

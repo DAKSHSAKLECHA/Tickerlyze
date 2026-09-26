@@ -12,6 +12,8 @@ def search_stocks():
     try:
         results = stock_service.search_tickers(query)
         return jsonify({"results": results})
+    except stock_service.MarketDataUnavailable as e:
+        return jsonify({"error": str(e)}), 503, {"Retry-After": "120"}
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -23,6 +25,8 @@ def get_stock(symbol):
         return jsonify(quote)
     except stock_service.StockNotFoundError as e:
         return jsonify({"error": str(e)}), 404
+    except stock_service.MarketDataUnavailable as e:
+        return jsonify({"error": str(e)}), 503, {"Retry-After": "120"}
     except Exception as e:
         return jsonify({"error": f"Unexpected error: {e}"}), 500
 
@@ -36,5 +40,7 @@ def get_stock_history(symbol):
         return jsonify({"symbol": symbol.upper(), "period": period, "data": history})
     except stock_service.StockNotFoundError as e:
         return jsonify({"error": str(e)}), 404
+    except stock_service.MarketDataUnavailable as e:
+        return jsonify({"error": str(e)}), 503, {"Retry-After": "120"}
     except Exception as e:
         return jsonify({"error": f"Unexpected error: {e}"}), 500

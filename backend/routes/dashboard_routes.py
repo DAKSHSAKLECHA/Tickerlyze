@@ -25,7 +25,7 @@ def _fetch_index(symbol, name):
             "changePercent": quote.get("changePercent"),
         }
     except Exception:
-        return {"symbol": symbol, "name": name, "error": "unavailable"}
+        return {"symbol": symbol, "name": name, "error": "Market data temporarily unavailable. Please try again in a few minutes."}
 
 
 @dashboard_bp.route("/overview", methods=["GET"])

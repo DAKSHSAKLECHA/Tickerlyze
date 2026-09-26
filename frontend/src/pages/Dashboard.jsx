@@ -50,7 +50,7 @@ export default function Dashboard() {
             <div key={idx.symbol} className="card">
               <div className="text-xs text-slate-400">{idx.name}</div>
               {idx.error ? (
-                <div className="text-sm text-slate-400 mt-2">Unavailable</div>
+                <div className="text-sm text-slate-400 mt-2">{idx.error}</div>
               ) : (
                 <>
                   <div className="text-lg font-semibold text-slate-800 mt-1">
