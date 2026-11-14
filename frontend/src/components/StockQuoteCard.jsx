@@ -7,7 +7,8 @@ export default function StockQuoteCard({ quote }) {
 
   const metrics = [
     { label: 'Market Cap', value: formatCompactNumber(quote.marketCap) },
-    { label: 'PE Ratio', value: quote.peRatio ? formatNumber(quote.peRatio, { maximumFractionDigits: 2 }) : 'N/A' },
+    { label: 'Trailing P/E', value: formatNumber(quote.peRatio, { maximumFractionDigits: 2 }) },
+    { label: 'Trailing EPS', value: formatNumber(quote.eps, { maximumFractionDigits: 2 }) },
     { label: '52W High', value: formatCurrency(quote.week52High, quote.currency) },
     { label: '52W Low', value: formatCurrency(quote.week52Low, quote.currency) },
   ]
@@ -18,7 +19,7 @@ export default function StockQuoteCard({ quote }) {
         <div>
           <h2 className="text-xl font-semibold text-slate-800">{quote.shortName}</h2>
           <p className="text-sm text-slate-400">
-            {quote.symbol} · {quote.exchange} {quote.sector ? `· ${quote.sector}` : ''}
+            {[quote.symbol, quote.exchange, quote.sector].filter(Boolean).join(" · ")}
           </p>
         </div>
         <div className="text-right">
@@ -38,7 +39,7 @@ export default function StockQuoteCard({ quote }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-5">
         {metrics.map((m) => (
           <div key={m.label} className="bg-slate-50 rounded-xl px-3 py-2.5">
             <div className="text-xs text-slate-400">{m.label}</div>

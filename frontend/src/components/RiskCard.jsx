@@ -5,6 +5,25 @@ export default function RiskCard({ risk }) {
   if (!risk) return null
   const { riskScore, riskLevel, breakdown } = risk
 
+  if (riskScore == null) {
+    const missing = [
+      ['P/E', breakdown.peRatio.value],
+      ['revenue growth', breakdown.revenueGrowth.value],
+      ['debt/equity', breakdown.debtToEquity.value],
+    ].filter(([, value]) => value == null).map(([label]) => label)
+
+    return (
+      <div className="card">
+        <div className="flex items-center gap-1.5 font-semibold text-slate-800">
+          <Gauge className="w-4 h-4 text-brand-600" />
+          Risk Engine
+        </div>
+        <p className="mt-3 font-medium text-slate-700">Insufficient data</p>
+        <p className="mt-1 text-sm text-slate-500">Missing: {missing.join(', ')}.</p>
+      </div>
+    )
+  }
+
   const rows = [
     { label: 'PE Ratio', ...breakdown.peRatio, display: breakdown.peRatio.value ?? 'N/A' },
     {

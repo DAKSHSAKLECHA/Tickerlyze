@@ -23,12 +23,18 @@ export default function StockDetail() {
   const [analyzeError, setAnalyzeError] = useState('')
   const [inWatchlist, setInWatchlist] = useState(false)
   const [watchlistBusy, setWatchlistBusy] = useState(false)
+  const [watchlistError, setWatchlistError] = useState('')
 
   useEffect(() => {
     async function load() {
       setLoading(true)
       setError('')
       setAnalysis(null)
+      setWatchlistError('')
+      setQuote(null)
+      setRisk(null)
+      setEarnings(null)
+      setInWatchlist(false)
       try {
         const [q, r, e, wl] = await Promise.allSettled([
           stockApi.getQuote(symbol),
@@ -77,6 +83,7 @@ export default function StockDetail() {
 
   async function toggleWatchlist() {
     setWatchlistBusy(true)
+    setWatchlistError('')
     try {
       if (inWatchlist) {
         await watchlistApi.remove(symbol)
@@ -86,7 +93,7 @@ export default function StockDetail() {
         setInWatchlist(true)
       }
     } catch (err) {
-      setError(err.message)
+      setWatchlistError(err.message)
     } finally {
       setWatchlistBusy(false)
     }
@@ -120,6 +127,7 @@ export default function StockDetail() {
         </button>
       </div>
 
+      <ErrorBox message={watchlistError} />
       <StockQuoteCard quote={quote} />
 
       <PriceChart symbol={symbol} currency={quote?.currency} />

@@ -1,5 +1,6 @@
 """Wraps yfinance calls and normalizes the data we care about."""
 from datetime import date, datetime
+from math import isfinite
 
 import yfinance as yf
 from services.market_cache import cached_market_data, MarketDataUnavailable, StockNotFoundError
@@ -61,7 +62,7 @@ def get_quote(ticker_symbol):
         "change": None,
         "changePercent": None,
         "marketCap": info.get("marketCap"),
-        "peRatio": _safe_get(info, "trailingPE", "forwardPE"),
+        "peRatio": info.get("trailingPE"),
         "forwardPE": info.get("forwardPE"),
         "eps": info.get("trailingEps"),
         "week52High": info.get("fiftyTwoWeekHigh"),
@@ -90,6 +91,17 @@ def get_quote(ticker_symbol):
             except Exception:
                 # A missing optional metric should not discard the price.
                 continue
+
+    if quote["eps"] is None:
+        try:
+            income = ticker.get_income_stmt(freq="trailing")
+            if "DilutedEPS" in income.index and len(income.columns):
+                eps = float(income.loc["DilutedEPS"].sort_index(ascending=False).iloc[0])
+                if isfinite(eps):
+                    quote["eps"] = eps
+        except Exception:
+            # Income statements can be unavailable even when price data works.
+            pass
 
     if quote["peRatio"] is None and quote["eps"] is not None and quote["eps"] > 0:
         quote["peRatio"] = round(quote["currentPrice"] / quote["eps"], 2)

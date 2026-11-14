@@ -17,8 +17,10 @@ WEIGHTS = {
 
 def _score_pe(pe_ratio):
     """Very low or very high/negative PE is treated as riskier."""
-    if pe_ratio is None or pe_ratio <= 0:
-        return 80, "PE ratio is negative or unavailable (unprofitable or unstable earnings)."
+    if pe_ratio is None:
+        return None, "P/E data unavailable."
+    if pe_ratio <= 0:
+        return 80, "A non-positive P/E can indicate unprofitable earnings."
     if pe_ratio < 10:
         return 55, "PE below 10 can signal market skepticism about future earnings."
     if pe_ratio <= 25:
@@ -31,7 +33,7 @@ def _score_pe(pe_ratio):
 def _score_growth(revenue_growth):
     """revenue_growth is a fraction, e.g. 0.15 = 15%."""
     if revenue_growth is None:
-        return 60, "Revenue growth data unavailable."
+        return None, "Revenue growth data unavailable."
     pct = revenue_growth * 100
     if pct < 0:
         return 90, "Revenue is contracting year-over-year."
@@ -47,7 +49,7 @@ def _score_growth(revenue_growth):
 def _score_debt(debt_to_equity):
     """debt_to_equity from yfinance is usually already a percentage-like number (e.g. 45.2 = 45.2%)."""
     if debt_to_equity is None:
-        return 55, "Debt data unavailable."
+        return None, "Debt data unavailable."
     if debt_to_equity < 30:
         return 15, "Debt levels are low relative to equity."
     if debt_to_equity <= 100:
@@ -62,19 +64,22 @@ def calculate_risk(pe_ratio=None, revenue_growth=None, debt_to_equity=None):
     growth_score, growth_note = _score_growth(revenue_growth)
     debt_score, debt_note = _score_debt(debt_to_equity)
 
-    final_score = (
-        pe_score * WEIGHTS["pe"]
-        + growth_score * WEIGHTS["growth"]
-        + debt_score * WEIGHTS["debt"]
-    )
-    final_score = round(final_score, 1)
+    final_score = None
+    level = "Insufficient data"
+    if None not in (pe_score, growth_score, debt_score):
+        final_score = (
+            pe_score * WEIGHTS["pe"]
+            + growth_score * WEIGHTS["growth"]
+            + debt_score * WEIGHTS["debt"]
+        )
+        final_score = round(final_score, 1)
 
-    if final_score < 35:
-        level = "Low"
-    elif final_score < 65:
-        level = "Medium"
-    else:
-        level = "High"
+        if final_score < 35:
+            level = "Low"
+        elif final_score < 65:
+            level = "Medium"
+        else:
+            level = "High"
 
     return {
         "riskScore": final_score,
