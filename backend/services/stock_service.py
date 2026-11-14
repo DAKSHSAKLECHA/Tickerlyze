@@ -1,4 +1,6 @@
 """Wraps yfinance calls and normalizes the data we care about."""
+from datetime import date, datetime
+
 import yfinance as yf
 from services.market_cache import cached_market_data, MarketDataUnavailable, StockNotFoundError
 
@@ -31,26 +33,31 @@ def get_quote(ticker_symbol):
     ticker = yf.Ticker(ticker_symbol)
 
     try:
-        info = ticker.info
-    except Exception as e:
-        raise
+        info = ticker.info or {}
+    except Exception:
+        info = {}
 
-    if not info or info.get("regularMarketPrice") is None and info.get("currentPrice") is None:
-        # yfinance sometimes still returns a sparse dict for invalid tickers
-        hist = ticker.history(period="5d")
-        if hist.empty:
-            raise StockNotFoundError(f"Ticker '{ticker_symbol}' not found.")
-
-    current_price = _safe_get(info, "currentPrice", "regularMarketPrice", "previousClose")
+    current_price = _safe_get(info, "currentPrice", "regularMarketPrice")
+    previous_close = _safe_get(info, "regularMarketPreviousClose", "previousClose")
+    currency = info.get("currency")
+    if current_price is None:
+        history = ticker.history(period="5d", auto_adjust=False, raise_errors=True)
+        closes = history["Close"].dropna() if not history.empty else None
+        if closes is None or closes.empty:
+            raise MarketDataUnavailable("No recent prices available for this ticker.")
+        current_price = float(closes.iloc[-1])
+        if len(closes) >= 2:
+            previous_close = float(closes.iloc[-2])
+        currency = currency or ticker.history_metadata.get("currency")
 
     quote = {
         "symbol": ticker_symbol,
         "shortName": info.get("shortName") or info.get("longName") or ticker_symbol,
         "sector": info.get("sector"),
         "industry": info.get("industry"),
-        "currency": info.get("currency", "USD"),
+        "currency": currency or "USD",
         "currentPrice": current_price,
-        "previousClose": info.get("previousClose"),
+        "previousClose": previous_close,
         "change": None,
         "changePercent": None,
         "marketCap": info.get("marketCap"),
@@ -106,42 +113,30 @@ def get_next_earnings_date(ticker_symbol):
     try:
         cal = ticker.calendar
     except Exception:
-        return None
+        cal = None
 
-    if cal is None:
-        return None
-
-    # yfinance returns either a DataFrame or a dict depending on version
-    try:
-        if hasattr(cal, "get"):
-            earnings_date = cal.get("Earnings Date")
-        else:
-            earnings_date = cal.loc["Earnings Date"].values if "Earnings Date" in cal.index else None
-    except Exception:
-        earnings_date = None
-
-    if earnings_date is None:
-        return None
-
-    if isinstance(earnings_date, (list, tuple)):
-        candidates = list(earnings_date)
-    else:
-        try:
-            candidates = list(earnings_date)
-        except TypeError:
-            candidates = [earnings_date]
-
+    candidates = cal.get("Earnings Date") if isinstance(cal, dict) else None
+    if isinstance(candidates, (str, date)):
+        candidates = [candidates]
+    today = date.today()
     dates = []
-    for d in candidates:
+    for value in candidates or []:
         try:
-            if isinstance(d, str):
-                dates.append(d)
-            else:
-                dates.append(str(d)[:10])
-        except Exception:
+            day = date.fromisoformat(str(value)[:10])
+        except ValueError:
             continue
+        if day >= today:
+            dates.append(day)
+    if dates:
+        return min(dates).isoformat()
 
-    return dates[0] if dates else None
+    earnings = ticker.get_earnings_dates()
+    if earnings is not None:
+        dates = [
+            value.date() for value in earnings.index
+            if isinstance(value, datetime) and str(value) != "NaT" and value.date() >= today
+        ]
+    return min(dates).isoformat() if dates else None
 
 
 @cached_market_data(ttl=300)
