@@ -79,6 +79,21 @@ def get_quote(ticker_symbol):
         "longBusinessSummary": info.get("longBusinessSummary"),
     }
 
+    for field, fast_key in (
+        ("marketCap", "marketCap"),
+        ("week52High", "yearHigh"),
+        ("week52Low", "yearLow"),
+    ):
+        if quote[field] is None:
+            try:
+                quote[field] = ticker.fast_info[fast_key]
+            except Exception:
+                # A missing optional metric should not discard the price.
+                continue
+
+    if quote["peRatio"] is None and quote["eps"] is not None and quote["eps"] > 0:
+        quote["peRatio"] = round(quote["currentPrice"] / quote["eps"], 2)
+
     if quote["currentPrice"] and quote["previousClose"]:
         quote["change"] = round(quote["currentPrice"] - quote["previousClose"], 2)
         quote["changePercent"] = round((quote["change"] / quote["previousClose"]) * 100, 2)
@@ -142,10 +157,7 @@ def get_next_earnings_date(ticker_symbol):
 @cached_market_data(ttl=300)
 def search_tickers(query):
     """Best-effort ticker search using yfinance's search endpoint."""
-    try:
-        results = yf.Search(query, max_results=8).quotes
-    except Exception:
-        return []
+    results = yf.Search(query, max_results=8, raise_errors=True).quotes
 
     return [
         {
