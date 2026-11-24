@@ -1,29 +1,45 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { CalendarClock } from 'lucide-react'
-import { earningsApi } from '../api/client'
+import { earningsApi, watchlistApi } from '../api/client'
 import { Loading, ErrorBox } from '../components/Common'
 
 export default function Earnings() {
   const [upcoming, setUpcoming] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [stage, setStage] = useState('Checking watchlist…')
+  const [watchlistEmpty, setWatchlistEmpty] = useState(false)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
+    const controller = new AbortController()
     async function load() {
       setLoading(true)
       setError('')
+      setStage('Checking watchlist…')
       try {
-        const data = await earningsApi.getUpcomingForWatchlist()
-        setUpcoming(data.upcoming || [])
+        const membership = await watchlistApi.getSymbols({ signal: controller.signal })
+        if (controller.signal.aborted) return
+        const empty = membership.watchlist.length === 0
+        setWatchlistEmpty(empty)
+        if (empty) {
+          setUpcoming([])
+          return
+        }
+        setStage('Loading earnings dates…')
+        const data = await earningsApi.getUpcomingForWatchlist({ signal: controller.signal })
+        if (!Array.isArray(data.upcoming)) throw new Error('Earnings dates could not be read. Please retry.')
+        if (!controller.signal.aborted) setUpcoming(data.upcoming)
       } catch (err) {
-        setError(err.message)
+        if (!controller.signal.aborted) setError(err.message)
       } finally {
-        setLoading(false)
+        if (!controller.signal.aborted) setLoading(false)
       }
     }
     load()
-  }, [])
+    return () => controller.abort()
+  }, [attempt])
 
   return (
     <div className="space-y-6">
@@ -33,15 +49,16 @@ export default function Earnings() {
       </div>
 
       <ErrorBox message={error} />
-      {loading && <Loading label="Loading earnings dates..." />}
+      {error && <button onClick={() => setAttempt(value => value + 1)} disabled={loading} className="text-sm font-medium text-brand-700 disabled:opacity-60">Retry</button>}
+      {loading && <Loading label={stage} />}
 
       {!loading && upcoming.length === 0 && !error && (
         <div className="card text-center py-10 text-sm text-slate-400">
-          No stocks on your watchlist yet. Add stocks from the Search page to track their earnings.
+          {watchlistEmpty ? <>Your watchlist is empty. <Link to="/search" className="font-medium text-brand-700">Find stocks</Link> to track their earnings.</> : 'No upcoming earnings dates are available for your watchlist.'}
         </div>
       )}
 
-      {!loading && upcoming.length > 0 && (
+      {!loading && !error && upcoming.length > 0 && (
         <div className="card divide-y divide-slate-100">
           {upcoming.map((e) => (
             <Link
