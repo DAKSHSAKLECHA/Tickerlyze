@@ -2,8 +2,8 @@
 
 A full-stack web app that helps investors analyze stocks using live market
 data (Yahoo Finance) and AI-generated insights (Google Gemini). Includes a
-dashboard, stock search, AI analysis, an earnings tracker, a rules-based risk
-engine, and a personal watchlist.
+dashboard, stock search, AI analysis, an earnings tracker, plain-language price risk
+indicators, and a personal watchlist.
 
 > ⚠️ **Disclaimer:** This tool is for educational and informational purposes
 > only. Nothing it produces is financial advice.
@@ -41,7 +41,7 @@ ai-finance-controller/
 │   ├── services/                # Business logic, external calls
 │   │   ├── stock_service.py     # yfinance wrapper
 │   │   ├── ai_service.py        # Gemini prompt + parsing
-│   │   └── risk_engine.py       # Risk scoring model
+│   │   └── risk_engine.py       # Historical price indicators
 │   ├── storage/                 # JSON "database"
 │   │   ├── watchlist.json
 │   │   └── analyses.json
@@ -132,7 +132,7 @@ All endpoints return JSON and are prefixed with `/api`.
 | GET    | `/stocks/<symbol>/history?period=`     | Historical OHLCV data                         |
 | POST   | `/ai/analyze/<symbol>`                 | Generate AI analysis (summary, bull/bear, risks, takeaways) |
 | GET    | `/ai/analyses?limit=`                  | Recent AI analyses                            |
-| GET    | `/risk/<symbol>`                       | Risk score + Low/Medium/High rating           |
+| GET    | `/risk/<symbol>`                       | Historical price indicators + freshness metadata           |
 | GET    | `/earnings/<symbol>`                   | Next earnings date for a symbol               |
 | GET    | `/earnings/watchlist/upcoming`         | Next earnings dates for all watchlist symbols |
 | GET    | `/watchlist`                           | Get current watchlist (with live quotes)      |
@@ -145,19 +145,52 @@ these messages directly in the UI.
 
 ---
 
-## Risk Engine Methodology
+## Price Movement & Risk
 
-The risk score (0–100, lower is safer) is a weighted blend of three factors
-pulled straight from the stock's fundamentals:
+The stock quote replaces P/E and EPS cards with **Below 1-Year High**
+(`(1 - price / yearlyHigh) * 100`) and **Above 1-Year Low**
+(`(price / yearlyLow - 1) * 100`). Missing reference prices display
+"Unavailable". Negative comparisons indicate prices outside the supplied
+yearly range. These comparisons describe price position, not valuation.
 
-- **PE Ratio** (35%) — very low, negative, or very high PE increases risk
-- **Revenue Growth** (35%) — contracting or stagnant revenue increases risk
-- **Debt-to-Equity** (30%) — higher leverage increases risk
+The risk section uses the same six-month daily history as the chart:
 
-Final score buckets: **Low** (< 35), **Medium** (35–65), **High** (≥ 65).
-See `backend/services/risk_engine.py` for the exact scoring curve — it's a
-transparent heuristic, not a proprietary black box, so you can tune the
-weights and thresholds to your own taste.
+- **Daily Price Swings:** average absolute day-to-day percentage change
+  during the last three calendar months of the available history.
+- **Largest Recent Fall:** largest percentage fall from a prior closing
+  price peak across the available six-month history.
+- **Six-Month Performance:** percentage change from the first to the last
+  available closing price. New listings may cover a shorter period.
+
+Each indicator shows its actual dates. At least two valid positive closing
+prices are required. Historical behaviour does not predict future returns
+or capture every business risk. There is no composite score or risk rating.
+
+`GET /api/stocks/<symbol>/history` returns `data`, `priceIndicators`,
+`fetchedAt`, and `stale`, alongside `symbol` and `period`.
+`GET /api/risk/<symbol>` reuses the cached six-month history and returns
+`priceIndicators`, `fetchedAt`, `stale`, and `symbol`; the former
+`riskScore`, `riskLevel`, and fundamentals breakdown have been removed.
+
+### Loading and provider interruptions
+
+Quotes, history, earnings, watchlist, and saved AI analysis load independently.
+Switching symbols cancels stock-page reads and discards outdated results.
+Chart code loads separately from the initial application bundle.
+
+The bounded process-local cache shares concurrent identical requests without
+blocking unrelated keys. Successful quotes and history remain fresh for five
+minutes. If refreshing fails, saved data can be used for up to one additional
+hour and is visibly labelled with its original fetch time. Failed refreshes
+back off for two minutes; provider rate limits trigger a shared two-minute
+cooldown. The cache resets on backend restart and is separate per worker.
+Fetch timestamps indicate retrieval time, not the exchange's quote time.
+Normal frontend requests time out after 20 seconds; AI generation allows
+60 seconds. Historical price requests use an eight-second provider timeout.
+
+### Verification
+
+From `frontend`: `npm run build`
 
 ---
 

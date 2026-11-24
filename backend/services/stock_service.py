@@ -1,8 +1,8 @@
 """Wraps yfinance calls and normalizes the data we care about."""
 from datetime import date, datetime
-from math import isfinite
 
 import yfinance as yf
+from services.risk_engine import calculate_risk
 from services.market_cache import cached_market_data, MarketDataUnavailable, StockNotFoundError
 
 
@@ -14,13 +14,13 @@ def _safe_get(info, *keys, default=None):
     return default
 
 
-@cached_market_data(ttl=300)
+@cached_market_data(ttl=300, stale_ttl=3600)
 def get_quote(ticker_symbol):
     """Return current price + key valuation metrics for a ticker."""
     ticker_symbol = ticker_symbol.upper().strip()
     if ticker_symbol.startswith("^"):
         ticker = yf.Ticker(ticker_symbol)
-        history = ticker.history(period="5d", raise_errors=True)
+        history = ticker.history(period="5d", raise_errors=True, timeout=8)
         if history.empty:
             raise MarketDataUnavailable("No market index prices available.")
         closes = history["Close"].dropna()
@@ -42,7 +42,7 @@ def get_quote(ticker_symbol):
     previous_close = _safe_get(info, "regularMarketPreviousClose", "previousClose")
     currency = info.get("currency")
     if current_price is None:
-        history = ticker.history(period="5d", auto_adjust=False, raise_errors=True)
+        history = ticker.history(period="5d", auto_adjust=False, raise_errors=True, timeout=8)
         closes = history["Close"].dropna() if not history.empty else None
         if closes is None or closes.empty:
             raise MarketDataUnavailable("No recent prices available for this ticker.")
@@ -92,20 +92,6 @@ def get_quote(ticker_symbol):
                 # A missing optional metric should not discard the price.
                 continue
 
-    if quote["eps"] is None:
-        try:
-            income = ticker.get_income_stmt(freq="trailing")
-            if "DilutedEPS" in income.index and len(income.columns):
-                eps = float(income.loc["DilutedEPS"].sort_index(ascending=False).iloc[0])
-                if isfinite(eps):
-                    quote["eps"] = eps
-        except Exception:
-            # Income statements can be unavailable even when price data works.
-            pass
-
-    if quote["peRatio"] is None and quote["eps"] is not None and quote["eps"] > 0:
-        quote["peRatio"] = round(quote["currentPrice"] / quote["eps"], 2)
-
     if quote["currentPrice"] and quote["previousClose"]:
         quote["change"] = round(quote["currentPrice"] - quote["previousClose"], 2)
         quote["changePercent"] = round((quote["change"] / quote["previousClose"]) * 100, 2)
@@ -113,15 +99,15 @@ def get_quote(ticker_symbol):
     return quote
 
 
-@cached_market_data(ttl=300)
+@cached_market_data(ttl=300, stale_ttl=3600)
 def get_history(ticker_symbol, period="6mo", interval="1d"):
     ticker = yf.Ticker(ticker_symbol.upper().strip())
-    hist = ticker.history(period=period, interval=interval, raise_errors=True)
+    hist = ticker.history(period=period, interval=interval, raise_errors=True, timeout=8)
     if hist.empty:
         raise StockNotFoundError(f"No historical data for '{ticker_symbol}'.")
     hist = hist.reset_index()
     date_col = "Date" if "Date" in hist.columns else "Datetime"
-    return [
+    rows = [
         {
             "date": row[date_col].strftime("%Y-%m-%d"),
             "open": round(row["Open"], 2),
@@ -132,6 +118,7 @@ def get_history(ticker_symbol, period="6mo", interval="1d"):
         }
         for _, row in hist.iterrows()
     ]
+    return {"data": rows, "priceIndicators": calculate_risk(rows)}
 
 
 @cached_market_data(ttl=300)
@@ -169,7 +156,7 @@ def get_next_earnings_date(ticker_symbol):
 @cached_market_data(ttl=300)
 def search_tickers(query):
     """Best-effort ticker search using yfinance's search endpoint."""
-    results = yf.Search(query, max_results=8, raise_errors=True).quotes
+    results = yf.Search(query, max_results=8, raise_errors=True, timeout=8).quotes
 
     return [
         {

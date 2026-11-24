@@ -22,20 +22,29 @@ function CustomTooltip({ active, payload, label, currency }) {
   )
 }
 
-export default function PriceChart({ symbol, currency = 'USD' }) {
+export default function PriceChart({ symbol, currency = 'USD', initialHistory, initialLoading, initialError }) {
   const [period, setPeriod] = useState('6mo')
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [metadata, setMetadata] = useState(null)
 
   useEffect(() => {
+    if (period === '6mo') {
+      setData(initialHistory?.data || [])
+      setMetadata(initialHistory)
+      setLoading(initialLoading)
+      setError(initialError || '')
+      return
+    }
+    const controller = new AbortController()
     let cancelled = false
     async function load() {
       setLoading(true)
       setError('')
       try {
-        const res = await stockApi.getHistory(symbol, period)
-        if (!cancelled) setData(res.data || [])
+        const res = await stockApi.getHistory(symbol, period, { signal: controller.signal })
+        if (!cancelled) { setData(res.data || []); setMetadata(res) }
       } catch (err) {
         if (!cancelled) setError(err.message)
       } finally {
@@ -45,8 +54,9 @@ export default function PriceChart({ symbol, currency = 'USD' }) {
     load()
     return () => {
       cancelled = true
+      controller.abort()
     }
-  }, [symbol, period])
+  }, [symbol, period, initialHistory, initialLoading, initialError])
 
   const isUp = data.length > 1 && data[data.length - 1].close >= data[0].close
 
@@ -74,6 +84,9 @@ export default function PriceChart({ symbol, currency = 'USD' }) {
         </div>
       </div>
 
+      {metadata?.fetchedAt && !loading && !error && <p className="text-xs text-slate-500 mb-3">
+        {metadata.stale ? 'Saved prices; live refresh unavailable. Fetched ' : 'Prices fetched '}{new Date(metadata.fetchedAt).toLocaleString()}.
+      </p>}
       {loading && <Loading label="Loading chart..." />}
       <ErrorBox message={error} />
 

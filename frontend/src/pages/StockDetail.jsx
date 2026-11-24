@@ -1,18 +1,27 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, lazy, Suspense } from 'react'
 import { useParams } from 'react-router-dom'
 import { Star, Sparkles, Loader2 } from 'lucide-react'
-import { stockApi, aiApi, riskApi, watchlistApi, earningsApi } from '../api/client'
+import { stockApi, aiApi, watchlistApi, earningsApi } from '../api/client'
 import { Loading, ErrorBox } from '../components/Common'
 import StockQuoteCard from '../components/StockQuoteCard'
-import PriceChart from '../components/PriceChart'
+const PriceChart = lazy(() => import('../components/PriceChart'))
 import AIAnalysisCard from '../components/AIAnalysisCard'
 import RiskCard from '../components/RiskCard'
 
 export default function StockDetail() {
   const { symbol } = useParams()
+  return <StockDetailContent key={symbol} symbol={symbol} />
+}
+
+function StockDetailContent({ symbol }) {
 
   const [quote, setQuote] = useState(null)
-  const [risk, setRisk] = useState(null)
+  const [history, setHistory] = useState(null)
+  const [historyLoading, setHistoryLoading] = useState(true)
+  const [historyError, setHistoryError] = useState('')
+  const [watchlistReady, setWatchlistReady] = useState(false)
+  const epoch = useRef(0)
+  const analysisRequested = useRef(false)
   const [earnings, setEarnings] = useState(null)
   const [analysis, setAnalysis] = useState(null)
   const [analysisGeneratedAt, setAnalysisGeneratedAt] = useState(null)
@@ -26,81 +35,87 @@ export default function StockDetail() {
   const [watchlistError, setWatchlistError] = useState('')
 
   useEffect(() => {
-    async function load() {
-      setLoading(true)
-      setError('')
-      setAnalysis(null)
-      setWatchlistError('')
-      setQuote(null)
-      setRisk(null)
-      setEarnings(null)
-      setInWatchlist(false)
-      try {
-        const [q, r, e, wl] = await Promise.allSettled([
-          stockApi.getQuote(symbol),
-          riskApi.getRisk(symbol),
-          earningsApi.getForSymbol(symbol),
-          watchlistApi.get(),
-        ])
-        if (q.status === 'fulfilled') setQuote(q.value)
-        else setError(q.reason.message)
-        if (r.status === 'fulfilled') setRisk(r.value)
-        if (e.status === 'fulfilled') setEarnings(e.value)
-        if (wl.status === 'fulfilled') {
-          setInWatchlist((wl.value.watchlist || []).some((w) => w.symbol === symbol.toUpperCase()))
-        }
-
-        // Load a previously saved AI analysis for this symbol, if one exists
-        try {
-          const saved = await aiApi.getForSymbol(symbol)
-          if (saved) {
-            setAnalysis(saved.analysis)
-            setAnalysisGeneratedAt(saved.generatedAt)
-          }
-        } catch {
-          // no saved analysis yet — that's fine, user can generate one
-        }
-      } finally {
-        setLoading(false)
+    const requestEpoch = ++epoch.current
+    analysisRequested.current = false
+    const controller = new AbortController()
+    let active = true
+    const options = { signal: controller.signal }
+    setLoading(true)
+    setError('')
+    setQuote(null)
+    setHistory(null)
+    setHistoryLoading(true)
+    setHistoryError('')
+    setEarnings(null)
+    setAnalysis(null)
+    setAnalysisGeneratedAt(null)
+    setAnalyzing(false)
+    setAnalyzeError('')
+    setWatchlistError('')
+    setWatchlistReady(false)
+    setWatchlistBusy(false)
+    setInWatchlist(false)
+    stockApi.getQuote(symbol, options)
+      .then((value) => { if (active) setQuote(value) })
+      .catch((err) => { if (active) setError(err.message) })
+      .finally(() => { if (active) setLoading(false) })
+    stockApi.getHistory(symbol, '6mo', options)
+      .then((value) => { if (active) setHistory(value) })
+      .catch((err) => { if (active) setHistoryError(err.message) })
+      .finally(() => { if (active) setHistoryLoading(false) })
+    earningsApi.getForSymbol(symbol, options)
+      .then((value) => { if (active) setEarnings(value) }).catch(() => {})
+    watchlistApi.get(options).then((value) => {
+      if (active) {
+        setInWatchlist((value.watchlist || []).some((w) => w.symbol === symbol.toUpperCase()))
+        setWatchlistReady(true)
       }
-    }
-    load()
+    }).catch((err) => { if (active) setWatchlistError(err.message) })
+    aiApi.getForSymbol(symbol, options).then((saved) => {
+      if (active && saved && !analysisRequested.current) {
+        setAnalysis(saved.analysis)
+        setAnalysisGeneratedAt(saved.generatedAt)
+      }
+    }).catch(() => {})
+    return () => { active = false; if (epoch.current === requestEpoch) epoch.current++; controller.abort() }
   }, [symbol])
 
   async function handleAnalyze() {
+    const requestedEpoch = epoch.current
+    analysisRequested.current = true
     setAnalyzing(true)
     setAnalyzeError('')
     try {
       const result = await aiApi.analyze(symbol)
+      if (epoch.current !== requestedEpoch) return
       setAnalysis(result.analysis)
       setAnalysisGeneratedAt(result.generatedAt)
     } catch (err) {
-      setAnalyzeError(err.message)
+      if (epoch.current === requestedEpoch) setAnalyzeError(err.message)
     } finally {
-      setAnalyzing(false)
+      if (epoch.current === requestedEpoch) setAnalyzing(false)
     }
   }
 
   async function toggleWatchlist() {
+    const requestedEpoch = epoch.current
     setWatchlistBusy(true)
     setWatchlistError('')
     try {
       if (inWatchlist) {
         await watchlistApi.remove(symbol)
-        setInWatchlist(false)
+        if (epoch.current === requestedEpoch) setInWatchlist(false)
       } else {
         await watchlistApi.add(symbol)
-        setInWatchlist(true)
+        if (epoch.current === requestedEpoch) setInWatchlist(true)
       }
     } catch (err) {
-      setWatchlistError(err.message)
+      if (epoch.current === requestedEpoch) setWatchlistError(err.message)
     } finally {
-      setWatchlistBusy(false)
+      if (epoch.current === requestedEpoch) setWatchlistBusy(false)
     }
   }
 
-  if (loading) return <Loading label={`Loading ${symbol}...`} />
-  if (error && !quote) return <ErrorBox message={error} />
 
   return (
     <div className="space-y-6">
@@ -115,7 +130,7 @@ export default function StockDetail() {
         </div>
         <button
           onClick={toggleWatchlist}
-          disabled={watchlistBusy}
+          disabled={watchlistBusy || !watchlistReady}
           className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium border transition-colors ${
             inWatchlist
               ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100'
@@ -128,9 +143,11 @@ export default function StockDetail() {
       </div>
 
       <ErrorBox message={watchlistError} />
+      {loading && <Loading label={`Loading ${symbol} quote...`} />}
+      <ErrorBox message={error} />
       <StockQuoteCard quote={quote} />
 
-      <PriceChart symbol={symbol} currency={quote?.currency} />
+      <Suspense fallback={<Loading label="Loading chart..." />}><PriceChart key={symbol} symbol={symbol} currency={quote?.currency} initialHistory={history} initialLoading={historyLoading} initialError={historyError} /></Suspense>
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
@@ -170,7 +187,7 @@ export default function StockDetail() {
         </div>
 
         <div>
-          <RiskCard risk={risk} />
+          <RiskCard history={history} loading={historyLoading} error={historyError} />
         </div>
       </div>
     </div>

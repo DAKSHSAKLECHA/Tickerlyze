@@ -37,7 +37,7 @@ def get_stock_history(symbol):
     interval = request.args.get("interval", "1d")
     try:
         history = stock_service.get_history(symbol, period=period, interval=interval)
-        return jsonify({"symbol": symbol.upper(), "period": period, "data": history})
+        return jsonify({"symbol": symbol.upper(), "period": period, **history})
     except stock_service.StockNotFoundError as e:
         return jsonify({"error": str(e)}), 404
     except stock_service.MarketDataUnavailable as e:

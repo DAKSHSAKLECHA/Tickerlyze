@@ -10,29 +10,22 @@ export default function Dashboard() {
   const [upcoming, setUpcoming] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [watchlistLoading, setWatchlistLoading] = useState(true)
+  const [upcomingLoading, setUpcomingLoading] = useState(true)
 
   useEffect(() => {
-    async function load() {
-      setLoading(true)
-      setError('')
-      try {
-        const [ov, wl, up] = await Promise.allSettled([
-          dashboardApi.getOverview(),
-          watchlistApi.get(),
-          earningsApi.getUpcomingForWatchlist(),
-        ])
-        if (ov.status === 'fulfilled') setOverview(ov.value)
-        if (wl.status === 'fulfilled') setWatchlist(wl.value.watchlist || [])
-        if (up.status === 'fulfilled') setUpcoming(up.value.upcoming || [])
-        if (ov.status === 'rejected') setError(ov.reason.message)
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
+    let active = true
+    dashboardApi.getOverview().then((value) => { if (active) setOverview(value) })
+      .catch((err) => { if (active) setError(err.message) })
+      .finally(() => { if (active) setLoading(false) })
+    watchlistApi.get().then((value) => { if (active) setWatchlist(value.watchlist || []) })
+      .catch((err) => { if (active) setError(err.message) })
+      .finally(() => { if (active) setWatchlistLoading(false) })
+    earningsApi.getUpcomingForWatchlist().then((value) => { if (active) setUpcoming(value.upcoming || []) })
+      .catch((err) => { if (active) setError(err.message) })
+      .finally(() => { if (active) setUpcomingLoading(false) })
+    return () => { active = false }
   }, [])
-
-  if (loading) return <Loading label="Loading dashboard..." />
 
   return (
     <div className="space-y-6">
@@ -45,6 +38,7 @@ export default function Dashboard() {
 
       <section>
         <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Market Overview</h2>
+        {loading && <Loading label="Loading market overview..." />}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {overview?.marketIndexes?.map((idx) => (
             <div key={idx.symbol} className="card">
@@ -79,7 +73,7 @@ export default function Dashboard() {
             </h2>
             <Link to="/watchlist" className="text-xs text-brand-600 font-medium">View all</Link>
           </div>
-          {watchlist.length === 0 ? (
+          {watchlistLoading ? <Loading label="Loading watchlist..." /> : watchlist.length === 0 ? (
             <p className="text-sm text-slate-400">No stocks on your watchlist yet.</p>
           ) : (
             <ul className="divide-y divide-slate-100">
@@ -101,7 +95,7 @@ export default function Dashboard() {
           <h2 className="flex items-center gap-1.5 font-semibold text-slate-800 mb-3">
             <CalendarClock className="w-4 h-4 text-brand-600" /> Upcoming Earnings
           </h2>
-          {upcoming.length === 0 ? (
+          {upcomingLoading ? <Loading label="Loading earnings..." /> : upcoming.length === 0 ? (
             <p className="text-sm text-slate-400">No upcoming earnings tracked. Add stocks to your watchlist.</p>
           ) : (
             <ul className="divide-y divide-slate-100">
@@ -122,7 +116,7 @@ export default function Dashboard() {
         <h2 className="flex items-center gap-1.5 font-semibold text-slate-800 mb-3">
           <Sparkles className="w-4 h-4 text-brand-600" /> Recent AI Analyses
         </h2>
-        {(!overview?.recentAnalyses || overview.recentAnalyses.length === 0) ? (
+        {loading ? <Loading label="Loading recent analyses..." /> : (!overview?.recentAnalyses || overview.recentAnalyses.length === 0) ? (
           <p className="text-sm text-slate-400">No analyses generated yet. Search a stock to get started.</p>
         ) : (
           <ul className="divide-y divide-slate-100">

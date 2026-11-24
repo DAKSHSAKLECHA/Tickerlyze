@@ -6,7 +6,7 @@ const API_BASE_URL = import.meta.env.PROD ? '/api' : apiBaseUrl(import.meta.env.
 
 const client = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 60000,
+  timeout: 20000,
 })
 
 // Normalize errors so components can just read `err.message`
@@ -32,30 +32,26 @@ export const dashboardApi = {
 
 export const stockApi = {
   search: (q) => client.get('/stocks/search', { params: { q } }).then((r) => r.data),
-  getQuote: (symbol) => client.get(`/stocks/${symbol}`).then((r) => r.data),
-  getHistory: (symbol, period = '6mo') =>
-    client.get(`/stocks/${symbol}/history`, { params: { period } }).then((r) => r.data),
+  getQuote: (symbol, options = {}) => client.get(`/stocks/${symbol}`, options).then((r) => r.data),
+  getHistory: (symbol, period = '6mo', options = {}) =>
+    client.get(`/stocks/${symbol}/history`, { ...options, params: { period } }).then((r) => r.data),
 }
 
 export const aiApi = {
-  analyze: (symbol) => client.post(`/ai/analyze/${symbol}`).then((r) => r.data),
+  analyze: (symbol) => client.post(`/ai/analyze/${symbol}`, null, { timeout: 60000 }).then((r) => r.data),
   getRecent: (limit = 10) =>
     client.get('/ai/analyses', { params: { limit } }).then((r) => r.data),
-  getForSymbol: (symbol) => client.get(`/ai/analyses/${symbol}`).then((r) => r.data),
-}
-
-export const riskApi = {
-  getRisk: (symbol) => client.get(`/risk/${symbol}`).then((r) => r.data),
+  getForSymbol: (symbol, options = {}) => client.get(`/ai/analyses/${symbol}`, options).then((r) => r.data),
 }
 
 export const earningsApi = {
-  getForSymbol: (symbol) => client.get(`/earnings/${symbol}`).then((r) => r.data),
+  getForSymbol: (symbol, options = {}) => client.get(`/earnings/${symbol}`, options).then((r) => r.data),
   getUpcomingForWatchlist: () =>
     client.get('/earnings/watchlist/upcoming').then((r) => r.data),
 }
 
 export const watchlistApi = {
-  get: () => client.get('/watchlist').then((r) => r.data),
+  get: (options = {}) => client.get('/watchlist', options).then((r) => r.data),
   add: (symbol) => client.post('/watchlist', { symbol }).then((r) => r.data),
   remove: (symbol) => client.delete(`/watchlist/${symbol}`).then((r) => r.data),
 }
