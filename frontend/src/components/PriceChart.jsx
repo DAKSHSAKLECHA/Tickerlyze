@@ -58,8 +58,6 @@ export default function PriceChart({ symbol, currency = 'USD', initialHistory, i
     }
   }, [symbol, period, initialHistory, initialLoading, initialError])
 
-  const isUp = data.length > 1 && data[data.length - 1].close >= data[0].close
-
   return (
     <div className="card">
       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
@@ -97,27 +95,27 @@ export default function PriceChart({ symbol, currency = 'USD', initialHistory, i
               <linearGradient id="priceGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop
                   offset="5%"
-                  stopColor={isUp ? '#10b981' : '#f43f5e'}
-                  stopOpacity={0.25}
+                  stopColor="#2563eb"
+                  stopOpacity={0.12}
                 />
                 <stop
                   offset="95%"
-                  stopColor={isUp ? '#10b981' : '#f43f5e'}
+                  stopColor="#2563eb"
                   stopOpacity={0}
                 />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
             <XAxis
               dataKey="date"
-              tick={{ fontSize: 11, fill: '#94a3b8' }}
+              tick={{ fontSize: 11, fill: '#64748b' }}
               tickLine={false}
               axisLine={false}
               minTickGap={40}
             />
             <YAxis
               domain={['auto', 'auto']}
-              tick={{ fontSize: 11, fill: '#94a3b8' }}
+              tick={{ fontSize: 11, fill: '#64748b' }}
               tickLine={false}
               axisLine={false}
               width={55}
@@ -128,7 +126,7 @@ export default function PriceChart({ symbol, currency = 'USD', initialHistory, i
               isAnimationActive={false}
               type="monotone"
               dataKey="close"
-              stroke={isUp ? '#059669' : '#e11d48'}
+              stroke="#2563eb"
               strokeWidth={2}
               fill="url(#priceGradient)"
             />
