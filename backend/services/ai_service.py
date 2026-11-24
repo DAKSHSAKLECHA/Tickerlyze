@@ -35,20 +35,42 @@ def _alternative_free_models():
             return list(_catalog[1])
     models = []
     try:
-        response = requests.get('https://openrouter.ai/api/v1/models', timeout=(3, 3))
+        response = requests.get('https://openrouter.ai/api/v1/models', timeout=(3, 4))
         response.raise_for_status()
         for model in response.json().get('data', []):
             pricing = model.get('pricing', {})
+            reasoning = model.get('reasoning') or {}
             if (model.get('id', '').endswith(':free')
                     and float(pricing.get('prompt', -1)) == 0
                     and float(pricing.get('completion', -1)) == 0
+                    and not reasoning.get('mandatory', False)
                     and 'response_format' in model.get('supported_parameters', [])):
-                models.append(model['id'])
+                models.append(model)
     except (requests.RequestException, ValueError, TypeError, AttributeError):
         pass
+    preferred = ['nvidia/nemotron-3.5-super-vl:free', 'dots-studio/dots-3-note-preview:free', 'google/gemma-4-26b-a4b-it:free', 'google/gemma-4-31b-it:free']
+    models.sort(key=lambda model: (
+        bool((model.get('reasoning') or {}).get('default_enabled', False)),
+        preferred.index(model['id']) if model['id'] in preferred else len(preferred)))
+    ids = [model['id'] for model in models]
+    # These fixed :free fallbacks were verified against the catalog. No paid
+    # model and no random reasoning router is used if the catalog is unavailable.
+    ids = ids or preferred
     with _catalog_lock:
-        _catalog = (monotonic() + (3600 if models else 60), models[:10])
-    return models[:10]
+        _catalog = (monotonic() + (3600 if models else 60), ids[:10])
+    return ids[:10]
+
+def free_quota():
+    """A read-only account lookup; never confuse a provider 429 with daily quota."""
+    try:
+        response = requests.get('https://openrouter.ai/api/v1/key',
+            headers={'Authorization': f'Bearer {Config.OPENROUTER_API_KEY}'}, timeout=(3, 4))
+        if response.status_code != 200:
+            return None
+        value = response.json().get('data', {}).get('free_model_daily_requests')
+        return value if isinstance(value, dict) else None
+    except (requests.RequestException, ValueError, TypeError, AttributeError):
+        return None
 
 def _parse_analysis(text):
     text = re.sub(r'^```(?:json)?\s*|\s*```$', '', text.strip())
@@ -85,10 +107,9 @@ def generate_analysis(quote):
         summary=(quote.get("longBusinessSummary") or "N/A")[:800],
     )
 
-    deadline = monotonic() + 38
-    alternatives = _alternative_free_models()
-    # Both attempts are strictly free. Never fall back to a paid model.
-    models = ['openrouter/free', alternatives[0] if alternatives else 'openrouter/free']
+    deadline = monotonic() + 42
+    # Prefer catalog-verified models with no mandatory reasoning.
+    models = _alternative_free_models()[:2]
     last_error = AIServiceError('Free AI models are busy right now. Please retry shortly.')
     for attempt, model in enumerate(models):
         remaining = deadline - monotonic()
@@ -101,16 +122,27 @@ def generate_analysis(quote):
                 headers={'Authorization': f'Bearer {Config.OPENROUTER_API_KEY}'},
                 json={'model': model, 'messages': [{'role': 'user', 'content': prompt}],
                       'response_format': {'type': 'json_object'}, 'max_tokens': 2048,
-                      'reasoning': {'effort': 'minimal', 'exclude': True},
+                      'reasoning': {'enabled': False, 'exclude': True},
                       'provider': {'allow_fallbacks': True}},
-                timeout=(3, min(14, max(1, remaining - 4))))
+                timeout=(3, min(18, max(1, remaining - 4))))
             if response.status_code in (401, 403):
                 raise AIServiceError('Free AI connection needs attention. Check the backend OpenRouter API key.')
             if response.status_code == 402:
                 raise AIServiceError('The OpenRouter account cannot serve this free request. Check its account status; no paid model was requested.')
             if response.status_code == 429:
-                # Do not keep retrying an account-wide free usage limit.
-                raise AIServiceError('Free AI usage limit reached. Please try later; any saved research is still available.', 429)
+                quota = free_quota()
+                if quota and quota.get('remaining') == 0:
+                    raise AIServiceError('The account daily free AI quota is exhausted. Saved research remains available until the quota resets.', 429)
+                try:
+                    message = str(response.json().get('error', {}).get('message', '')).lower()
+                except (ValueError, TypeError, AttributeError):
+                    message = ''
+                if any(term in message for term in ('per-minute', 'per minute', 'free-models-per-min')):
+                    raise AIServiceError('Too many AI requests in a short time. Please wait a minute before trying again.', 429)
+                # Remaining account quota does not guarantee this provider has
+                # capacity. Respect the bounded attempt budget and change model.
+                last_error = AIServiceError('The selected free models are busy. Please retry shortly; your daily quota may still be available.')
+                continue
             if response.status_code != 200:
                 last_error = AIServiceError('Free AI models are busy right now. Please retry shortly.')
                 continue
@@ -121,7 +153,7 @@ def generate_analysis(quote):
             choices = body.get('choices') or []
             text = choices[0].get('message', {}).get('content') if choices else None
             if not isinstance(text, str):
-                last_error = AIServiceError('Free AI returned no analysis. Please retry shortly.')
+                last_error = AIServiceError('This free model returned an empty answer. Trying another compatible model may help.')
                 continue
             try:
                 return _parse_analysis(text)
