@@ -24,10 +24,12 @@ export default function Dashboard() {
     earningsApi.getUpcomingForWatchlist().then((value) => { if (active) setUpcoming(value.upcoming || []) })
       .catch((err) => { if (active) setError(err.message) })
       .finally(() => { if (active) setUpcomingLoading(false) })
-    const recentAnalyses = (overview?.recentAnalyses || []).filter((record) => record.analysis?.schemaVersion === 2)
 
   return () => { active = false }
   }, [])
+
+  const recentAnalyses = (Array.isArray(overview?.recentAnalyses) ? overview.recentAnalyses : [])
+    .filter((record) => record?.analysis?.schemaVersion === 2)
 
   return (
     <div className="space-y-6">

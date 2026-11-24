@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import AppErrorBoundary from './components/AppErrorBoundary'
 import Navbar from './components/Navbar'
 import Dashboard from './pages/Dashboard'
@@ -8,11 +8,12 @@ import Earnings from './pages/Earnings'
 import Watchlist from './pages/Watchlist'
 
 export default function App() {
+  const location = useLocation()
   return (
     <div className="min-h-screen bg-slate-50">
       <Navbar />
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
-        <AppErrorBoundary><Routes>
+        <AppErrorBoundary key={location.pathname}><Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/search" element={<StockSearch />} />
           <Route path="/stock/:symbol" element={<StockDetail />} />
