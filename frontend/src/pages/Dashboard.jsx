@@ -24,7 +24,9 @@ export default function Dashboard() {
     earningsApi.getUpcomingForWatchlist().then((value) => { if (active) setUpcoming(value.upcoming || []) })
       .catch((err) => { if (active) setError(err.message) })
       .finally(() => { if (active) setUpcomingLoading(false) })
-    return () => { active = false }
+    const recentAnalyses = (overview?.recentAnalyses || []).filter((record) => record.analysis?.schemaVersion === 2)
+
+  return () => { active = false }
   }, [])
 
   return (
@@ -117,11 +119,11 @@ export default function Dashboard() {
         <h2 className="flex items-center gap-1.5 font-semibold text-slate-800 mb-3">
           <Sparkles className="w-4 h-4 text-brand-600" /> Recent AI Analyses
         </h2>
-        {loading ? <Loading label="Loading recent analyses..." /> : (!overview?.recentAnalyses || overview.recentAnalyses.length === 0) ? (
+        {loading ? <Loading label="Loading recent analyses..." /> : (recentAnalyses.length === 0) ? (
           <p className="text-sm text-slate-400">No analyses generated yet. Search a stock to get started.</p>
         ) : (
           <ul className="divide-y divide-slate-100">
-            {overview.recentAnalyses.map((a, i) => (
+            {recentAnalyses.map((a, i) => (
               <li key={i} className="py-2.5 flex items-center justify-between">
                 <div>
                   <Link to={`/stock/${a.symbol}`} className="text-sm font-medium text-slate-700 hover:text-brand-600">

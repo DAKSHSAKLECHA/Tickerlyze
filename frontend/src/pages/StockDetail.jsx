@@ -73,8 +73,11 @@ function StockDetailContent({ symbol }) {
     }).catch((err) => { if (active) setWatchlistError(err.message) })
     aiApi.getForSymbol(symbol, options).then((saved) => {
       if (active && saved && !analysisRequested.current) {
-        setAnalysis(saved.analysis)
-        setAnalysisGeneratedAt(saved.generatedAt)
+        if (saved.analysis?.schemaVersion === 2) {
+          setAnalysis(saved.analysis)
+          setAnalysisGeneratedAt(saved.generatedAt)
+        }
+        setAnalysisNotice(saved.notice || (saved.analysis && saved.analysis.schemaVersion !== 2 ? 'The saved summary needs updating. Generate a new grounded analysis.' : ''))
       }
     }).catch(() => {})
     return () => { active = false; if (epoch.current === requestEpoch) epoch.current++; controller.abort() }
@@ -88,11 +91,11 @@ function StockDetailContent({ symbol }) {
     try {
       const result = await aiApi.analyze(symbol, Boolean(analysis))
       if (epoch.current !== requestedEpoch) return
-      if (result.analysis) {
+      if (result.analysis?.schemaVersion === 2) {
         setAnalysis(result.analysis)
         setAnalysisGeneratedAt(result.generatedAt)
       }
-      setAnalysisNotice(result.notice || '')
+      setAnalysisNotice(result.notice || (result.analysis && result.analysis.schemaVersion !== 2 ? 'Please deploy the updated backend to use grounded AI analysis.' : ''))
     } catch {
       if (epoch.current === requestedEpoch) setAnalysisNotice('AI research is taking longer than usual. Please retry shortly; your saved analysis remains available.')
     } finally {
@@ -159,7 +162,7 @@ function StockDetailContent({ symbol }) {
             <div className="card flex flex-col items-center justify-center text-center py-10 gap-3">
               <Sparkles className="w-8 h-8 text-brand-500" />
               <p className="text-sm text-slate-500 max-w-sm">
-                Generate an AI-powered summary, bull/bear case, risks, and key takeaways for {symbol.toUpperCase()}.
+                Get a grounded summary, supporting factors, concerns, and missing information for {symbol.toUpperCase()}.
               </p>
               <button
                 onClick={handleAnalyze}

@@ -12,8 +12,13 @@ _pending = {}
 _retry_after = {}
 _CACHE_SECONDS = 6 * 3600
 
+def _current_saved(symbol):
+    record = database.analysis(symbol)
+    analysis = record.get('analysis') if isinstance(record, dict) else None
+    return record if isinstance(analysis, dict) and analysis.get('schemaVersion') == 2 else None
+
 def _recover(symbol, message):
-    saved = database.analysis(symbol)
+    saved = _current_saved(symbol)
     if saved:
         return {**saved, 'cached': True, 'notice': message + ' Showing saved AI research from the displayed generation time.'}
     return {'symbol': symbol, 'analysis': None, 'status': 'unavailable', 'notice': message}
@@ -33,7 +38,7 @@ def analyze_stock(symbol):
     symbol = valid_symbol(symbol)
     body = request.get_json(silent=True) or {}
     refresh = isinstance(body, dict) and body.get('refresh') is True
-    saved = database.analysis(symbol)
+    saved = _current_saved(symbol)
     if saved and not refresh:
         try:
             age = (datetime.now(timezone.utc) - datetime.fromisoformat(saved['generatedAt'])).total_seconds()
@@ -93,4 +98,10 @@ def analyze_stock(symbol):
 
 @ai_bp.get('/analyses/<symbol>')
 def latest_analysis_for_symbol(symbol):
-    return jsonify(database.analysis(valid_symbol(symbol)))
+    symbol = valid_symbol(symbol)
+    saved = _current_saved(symbol)
+    if saved:
+        return jsonify(saved)
+    if database.analysis(symbol):
+        return jsonify(analysis=None, status='outdated', notice='The saved summary uses the older format. Generate a new grounded analysis.')
+    return jsonify(None)

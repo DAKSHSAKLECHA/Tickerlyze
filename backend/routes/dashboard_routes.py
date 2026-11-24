@@ -42,7 +42,7 @@ def market_overview():
     indexes = [results[symbol] for symbol in MARKET_INDEXES]
 
     watchlist = database.watchlist()
-    analyses = database.recent_analyses(5)
+    analyses = [record for record in database.recent_analyses(50) if (record.get('analysis') or {}).get('schemaVersion') == 2][:5]
 
     return jsonify({
         "marketIndexes": indexes,
