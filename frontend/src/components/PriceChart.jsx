@@ -125,6 +125,7 @@ export default function PriceChart({ symbol, currency = 'USD', initialHistory, i
             />
             <Tooltip content={<CustomTooltip currency={currency} />} />
             <Area
+              isAnimationActive={false}
               type="monotone"
               dataKey="close"
               stroke={isUp ? '#059669' : '#e11d48'}

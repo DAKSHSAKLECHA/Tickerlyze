@@ -56,10 +56,11 @@ export default function Dashboard() {
                     }`}
                   >
                     {idx.change >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-                    {idx.change} ({idx.changePercent}%)
+                    {Number.isFinite(idx.change) ? `${idx.change} (${idx.changePercent}%)` : 'Change unavailable'}
                   </div>
                 </>
               )}
+              {idx.fetchedAt && <p className="text-xs text-slate-400 mt-2">{idx.stale ? 'Saved data · ' : 'Fetched · '}{new Date(idx.fetchedAt).toLocaleTimeString()}</p>}
             </div>
           ))}
         </div>

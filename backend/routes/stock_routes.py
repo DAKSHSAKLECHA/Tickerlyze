@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 from services import stock_service
+from utils.validation import symbol as valid_symbol
 
 stock_bp = Blueprint("stock", __name__, url_prefix="/api/stocks")
 
@@ -7,7 +8,7 @@ stock_bp = Blueprint("stock", __name__, url_prefix="/api/stocks")
 @stock_bp.route("/search", methods=["GET"])
 def search_stocks():
     query = request.args.get("q", "").strip()
-    if not query:
+    if not query or len(query) > 60:
         return jsonify({"error": "Query parameter 'q' is required."}), 400
     try:
         results = stock_service.search_tickers(query)
@@ -15,11 +16,12 @@ def search_stocks():
     except stock_service.MarketDataUnavailable as e:
         return jsonify({"error": str(e)}), 503, {"Retry-After": "120"}
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Market data is temporarily unavailable."}), 503
 
 
 @stock_bp.route("/<symbol>", methods=["GET"])
 def get_stock(symbol):
+    symbol = valid_symbol(symbol)
     try:
         quote = stock_service.get_quote(symbol)
         return jsonify(quote)
@@ -28,13 +30,16 @@ def get_stock(symbol):
     except stock_service.MarketDataUnavailable as e:
         return jsonify({"error": str(e)}), 503, {"Retry-After": "120"}
     except Exception as e:
-        return jsonify({"error": f"Unexpected error: {e}"}), 500
+        return jsonify({"error": "Market data is temporarily unavailable."}), 503
 
 
 @stock_bp.route("/<symbol>/history", methods=["GET"])
 def get_stock_history(symbol):
+    symbol = valid_symbol(symbol)
     period = request.args.get("period", "6mo")
     interval = request.args.get("interval", "1d")
+    if period not in ('1mo', '3mo', '6mo', '1y', '5y') or interval != '1d':
+        return jsonify(error='Choose a supported period and daily interval.'), 400
     try:
         history = stock_service.get_history(symbol, period=period, interval=interval)
         return jsonify({"symbol": symbol.upper(), "period": period, **history})
@@ -43,4 +48,4 @@ def get_stock_history(symbol):
     except stock_service.MarketDataUnavailable as e:
         return jsonify({"error": str(e)}), 503, {"Retry-After": "120"}
     except Exception as e:
-        return jsonify({"error": f"Unexpected error: {e}"}), 500
+        return jsonify({"error": "Market data is temporarily unavailable."}), 503

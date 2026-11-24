@@ -65,7 +65,7 @@ function StockDetailContent({ symbol }) {
       .finally(() => { if (active) setHistoryLoading(false) })
     earningsApi.getForSymbol(symbol, options)
       .then((value) => { if (active) setEarnings(value) }).catch(() => {})
-    watchlistApi.get(options).then((value) => {
+    watchlistApi.getSymbols(options).then((value) => {
       if (active) {
         setInWatchlist((value.watchlist || []).some((w) => w.symbol === symbol.toUpperCase()))
         setWatchlistReady(true)

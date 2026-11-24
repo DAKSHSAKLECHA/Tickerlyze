@@ -1,5 +1,6 @@
 """Wraps yfinance calls and normalizes the data we care about."""
-from datetime import date, datetime
+from datetime import date, datetime, timezone
+from math import isfinite
 
 import yfinance as yf
 from services.risk_engine import calculate_risk
@@ -29,6 +30,7 @@ def get_quote(ticker_symbol):
         current, previous = float(closes.iloc[-1]), float(closes.iloc[-2])
         change = current - previous
         return {"symbol": ticker_symbol, "currentPrice": current,
+                "priceAsOf": history.index[-1].isoformat(),
                 "previousClose": previous, "change": round(change, 2),
                 "changePercent": round(change / previous * 100, 2) if previous else None}
     ticker = yf.Ticker(ticker_symbol)
@@ -53,6 +55,7 @@ def get_quote(ticker_symbol):
 
     quote = {
         "symbol": ticker_symbol,
+        "priceAsOf": datetime.fromtimestamp(info["regularMarketTime"], timezone.utc).isoformat() if isinstance(info.get("regularMarketTime"), (int, float)) else None,
         "shortName": info.get("shortName") or info.get("longName") or ticker_symbol,
         "sector": info.get("sector"),
         "industry": info.get("industry"),
@@ -96,6 +99,11 @@ def get_quote(ticker_symbol):
         quote["change"] = round(quote["currentPrice"] - quote["previousClose"], 2)
         quote["changePercent"] = round((quote["change"] / quote["previousClose"]) * 100, 2)
 
+    for key, value in quote.items():
+        if isinstance(value, float) and not isfinite(value):
+            quote[key] = None
+    if not isinstance(quote['currentPrice'], (int, float)) or quote['currentPrice'] <= 0:
+        raise MarketDataUnavailable('No valid recent price is available.')
     return quote
 
 
@@ -105,6 +113,10 @@ def get_history(ticker_symbol, period="6mo", interval="1d"):
     hist = ticker.history(period=period, interval=interval, raise_errors=True, timeout=8)
     if hist.empty:
         raise StockNotFoundError(f"No historical data for '{ticker_symbol}'.")
+    hist = hist.dropna(subset=["Close"])
+    hist = hist[hist["Close"] > 0]
+    if hist.empty:
+        raise MarketDataUnavailable("No valid historical prices available.")
     hist = hist.reset_index()
     date_col = "Date" if "Date" in hist.columns else "Datetime"
     rows = [
@@ -114,7 +126,7 @@ def get_history(ticker_symbol, period="6mo", interval="1d"):
             "high": round(row["High"], 2),
             "low": round(row["Low"], 2),
             "close": round(row["Close"], 2),
-            "volume": int(row["Volume"]),
+            "volume": int(row["Volume"]) if isfinite(row["Volume"]) else 0,
         }
         for _, row in hist.iterrows()
     ]

@@ -5,7 +5,10 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from functools import wraps
 from threading import RLock
-from time import monotonic
+from time import monotonic, time
+import json
+import logging
+from services import database
 
 class StockNotFoundError(Exception):
     pass
@@ -34,9 +37,25 @@ def cached_market_data(ttl=300, stale_ttl=0):
                 if entry and not entry.get('error') and monotonic() < entry['expires'] + stale_ttl:
                     return present(entry, True)
                 raise MarketDataUnavailable('Market data is temporarily unavailable. Please try again later.')
+            # Disk/remote database I/O must not hold the global cache lock.
+            restored = None
+            with _lock:
+                load_saved = stale_ttl and key not in _cache
+            if load_saved:
+                try:
+                    saved = database.snapshot(json.dumps(key))
+                    if saved and time() - saved[1] < ttl + stale_ttl:
+                        payload, created = saved
+                        restored = dict(value=payload['value'], fetchedAt=payload['fetchedAt'], expires=monotonic() + ttl - (time() - created))
+                except Exception:
+                    logging.getLogger(__name__).warning('Saved market data could not be loaded')
             with _lock:
                 now = monotonic()
                 entry = _cache.get(key)
+                if not entry and restored:
+                    entry = _cache[key] = restored
+                    while len(_cache) > _MAX_ENTRIES:
+                        _cache.popitem(last=False)
                 if entry and entry['expires'] > now:
                     _cache.move_to_end(key)
                     if entry.get('error'):
@@ -60,6 +79,11 @@ def cached_market_data(ttl=300, stale_ttl=0):
                     while len(_cache) > _MAX_ENTRIES:
                         _cache.popitem(last=False)
                 result = present(entry)
+                if stale_ttl:
+                    try:
+                        database.save_snapshot(json.dumps(key), {'value': entry['value'], 'fetchedAt': entry['fetchedAt']})
+                    except Exception:
+                        logging.getLogger(__name__).warning('Market snapshot could not be saved')
             except StockNotFoundError as exc:
                 future.set_exception(exc)
                 raise

@@ -1,8 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, jsonify
-from config import Config
 from services import stock_service
-from utils.json_store import read_json
+from services import database
 
 dashboard_bp = Blueprint("dashboard", __name__, url_prefix="/api/dashboard")
 
@@ -21,6 +20,8 @@ def _fetch_index(symbol, name):
             "symbol": symbol,
             "name": name,
             "price": quote.get("currentPrice"),
+            "fetchedAt": quote.get("fetchedAt"), "stale": quote.get("stale", False),
+            "priceAsOf": quote.get("priceAsOf"),
             "change": quote.get("change"),
             "changePercent": quote.get("changePercent"),
         }
@@ -40,8 +41,8 @@ def market_overview():
     # preserve original display order
     indexes = [results[symbol] for symbol in MARKET_INDEXES]
 
-    watchlist = read_json(Config.WATCHLIST_FILE, default=[])
-    analyses = read_json(Config.ANALYSES_FILE, default=[])
+    watchlist = database.watchlist()
+    analyses = database.recent_analyses(5)
 
     return jsonify({
         "marketIndexes": indexes,

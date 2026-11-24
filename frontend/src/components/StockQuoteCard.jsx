@@ -11,11 +11,9 @@ export default function StockQuoteCard({ quote }) {
     return `${(below ? -pct : pct).toFixed(1)}%`
   }
   const metrics = [
-    { label: 'Market Cap', value: formatCompactNumber(quote.marketCap) },
-    { label: 'Below 1-Year High', value: comparison(quote.week52High, true), note: 'Distance below the highest price in the last year. A negative value means a new high.' },
-    { label: 'Above 1-Year Low', value: comparison(quote.week52Low), note: 'Distance above the lowest price in the last year. A negative value means a new low.' },
-    { label: '52W High', value: formatCurrency(quote.week52High, quote.currency) },
-    { label: '52W Low', value: formatCurrency(quote.week52Low, quote.currency) },
+    { label: 'Company Size (Market Cap)', value: `${formatCompactNumber(quote.marketCap)} ${quote.currency || 'USD'}`, note: 'Total market value of outstanding shares.' },
+    { label: '1-Year High', value: formatCurrency(quote.week52High, quote.currency), note: `${comparison(quote.week52High, true)} below the yearly high. Negative means a new high.` },
+    { label: '1-Year Low', value: formatCurrency(quote.week52Low, quote.currency), note: `${comparison(quote.week52Low)} above the yearly low. Negative means a new low.` },
   ]
 
   return (
@@ -45,10 +43,10 @@ export default function StockQuoteCard({ quote }) {
       </div>
 
       {quote.fetchedAt && <p className="text-xs text-slate-500 mt-3">
-        {quote.stale ? 'Showing saved data; live refresh is temporarily unavailable. ' : 'Data fetched '}
-        {new Date(quote.fetchedAt).toLocaleString()}. Prices may be delayed.
+        {quote.stale ? 'Saved data; live refresh unavailable. Fetched ' : 'Data fetched '}
+        {new Date(quote.fetchedAt).toLocaleString()}. Prices may be delayed. {quote.priceAsOf && `Latest available price time: ${new Date(quote.priceAsOf).toLocaleString()}.`}
       </p>}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">
         {metrics.map((m) => (
           <div key={m.label} className="bg-slate-50 rounded-xl px-3 py-2.5">
             <div className="text-xs text-slate-400">{m.label}</div>

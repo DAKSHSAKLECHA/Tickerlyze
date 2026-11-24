@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LineChart, Search, Sparkles, CalendarClock, ShieldAlert, Star } from 'lucide-react'
+import { LineChart, Search, Sparkles, CalendarClock, Star } from 'lucide-react'
 
 const links = [
   { to: '/', label: 'Dashboard', icon: LineChart },
@@ -11,7 +11,7 @@ const links = [
 export default function Navbar() {
   return (
     <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-slate-200">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 font-semibold text-slate-800">
           <Sparkles className="w-5 h-5 text-brand-600" />
           <span>Tickerlyze</span>

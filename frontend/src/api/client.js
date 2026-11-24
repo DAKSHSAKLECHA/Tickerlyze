@@ -39,8 +39,6 @@ export const stockApi = {
 
 export const aiApi = {
   analyze: (symbol, refresh = false) => client.post(`/ai/analyze/${symbol}`, { refresh }, { timeout: 60000 }).then((r) => r.data),
-  getRecent: (limit = 10) =>
-    client.get('/ai/analyses', { params: { limit } }).then((r) => r.data),
   getForSymbol: (symbol, options = {}) => client.get(`/ai/analyses/${symbol}`, options).then((r) => r.data),
 }
 
@@ -51,6 +49,7 @@ export const earningsApi = {
 }
 
 export const watchlistApi = {
+  getSymbols: (options = {}) => client.get('/watchlist', { ...options, params: { symbolsOnly: true } }).then((r) => r.data),
   get: (options = {}) => client.get('/watchlist', options).then((r) => r.data),
   add: (symbol) => client.post('/watchlist', { symbol }).then((r) => r.data),
   remove: (symbol) => client.delete(`/watchlist/${symbol}`).then((r) => r.data),

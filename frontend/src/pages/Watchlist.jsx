@@ -62,7 +62,7 @@ export default function Watchlist() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-800">Watchlist</h1>
-        <p className="text-sm text-slate-500 mt-1">Track the stocks you care about.</p>
+        <p className="text-sm text-slate-500 mt-1">Track the stocks you care about. This demo uses one shared watchlist.</p>
       </div>
 
       <form onSubmit={handleAdd} className="flex gap-2">
