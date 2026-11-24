@@ -29,7 +29,7 @@ function StockDetailContent({ symbol }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [analyzing, setAnalyzing] = useState(false)
-  const [analyzeError, setAnalyzeError] = useState('')
+  const [analysisNotice, setAnalysisNotice] = useState('')
   const [inWatchlist, setInWatchlist] = useState(false)
   const [watchlistBusy, setWatchlistBusy] = useState(false)
   const [watchlistError, setWatchlistError] = useState('')
@@ -50,7 +50,7 @@ function StockDetailContent({ symbol }) {
     setAnalysis(null)
     setAnalysisGeneratedAt(null)
     setAnalyzing(false)
-    setAnalyzeError('')
+    setAnalysisNotice('')
     setWatchlistError('')
     setWatchlistReady(false)
     setWatchlistBusy(false)
@@ -84,14 +84,17 @@ function StockDetailContent({ symbol }) {
     const requestedEpoch = epoch.current
     analysisRequested.current = true
     setAnalyzing(true)
-    setAnalyzeError('')
+    setAnalysisNotice('')
     try {
-      const result = await aiApi.analyze(symbol)
+      const result = await aiApi.analyze(symbol, Boolean(analysis))
       if (epoch.current !== requestedEpoch) return
-      setAnalysis(result.analysis)
-      setAnalysisGeneratedAt(result.generatedAt)
-    } catch (err) {
-      if (epoch.current === requestedEpoch) setAnalyzeError(err.message)
+      if (result.analysis) {
+        setAnalysis(result.analysis)
+        setAnalysisGeneratedAt(result.generatedAt)
+      }
+      setAnalysisNotice(result.notice || '')
+    } catch {
+      if (epoch.current === requestedEpoch) setAnalysisNotice('AI research is taking longer than usual. Please retry shortly; your saved analysis remains available.')
     } finally {
       if (epoch.current === requestedEpoch) setAnalyzing(false)
     }
@@ -151,6 +154,7 @@ function StockDetailContent({ symbol }) {
 
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
+          {analysisNotice && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{analysisNotice}</p>}
           {!analysis && (
             <div className="card flex flex-col items-center justify-center text-center py-10 gap-3">
               <Sparkles className="w-8 h-8 text-brand-500" />
@@ -165,7 +169,6 @@ function StockDetailContent({ symbol }) {
                 {analyzing && <Loader2 className="w-4 h-4 animate-spin" />}
                 {analyzing ? 'Analyzing...' : 'Generate AI Analysis'}
               </button>
-              <ErrorBox message={analyzeError} />
             </div>
           )}
           {analysis && (
@@ -181,7 +184,6 @@ function StockDetailContent({ symbol }) {
                   {analyzing ? 'Re-analyzing...' : 'Re-run AI Analysis'}
                 </button>
               </div>
-              <ErrorBox message={analyzeError} />
             </>
           )}
         </div>

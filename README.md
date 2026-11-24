@@ -1,7 +1,7 @@
 # AI Finance Controller
 
 A full-stack web app that helps investors analyze stocks using live market
-data (Yahoo Finance) and AI-generated insights (Google Gemini). Includes a
+data (Yahoo Finance) and AI-generated insights (OpenRouter free models). Includes a
 dashboard, stock search, AI analysis, an earnings tracker, plain-language price risk
 indicators, and a personal watchlist.
 
@@ -17,7 +17,7 @@ indicators, and a personal watchlist.
 | Frontend  | React (Vite) + Tailwind CSS          |
 | Backend   | Python Flask (REST API)              |
 | Data      | Yahoo Finance via `yfinance`         |
-| AI        | Google Gemini API                    |
+| AI        | OpenRouter free models                    |
 | Storage   | JSON files (no database required)    |
 
 ---
@@ -40,7 +40,7 @@ ai-finance-controller/
 │   │   └── dashboard_routes.py
 │   ├── services/                # Business logic, external calls
 │   │   ├── stock_service.py     # yfinance wrapper
-│   │   ├── ai_service.py        # Gemini prompt + parsing
+│   │   ├── ai_service.py        # Free AI routing + parsing
 │   │   └── risk_engine.py       # Historical price indicators
 │   ├── storage/                 # JSON "database"
 │   │   ├── watchlist.json
@@ -78,7 +78,7 @@ source venv/bin/activate      # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# Edit .env and add your GEMINI_API_KEY (https://aistudio.google.com/apikey)
+# Edit .env and add your OPENROUTER_API_KEY (https://openrouter.ai/settings/keys)
 
 python app.py
 ```
@@ -106,8 +106,7 @@ The app runs at `http://localhost:5173`.
 **backend/.env**
 | Variable         | Description                                  |
 |-------------------|-----------------------------------------------|
-| `GEMINI_API_KEY`  | Your Google Gemini API key (required for AI Analysis) |
-| `GEMINI_MODEL`    | Gemini model name (default: `gemini-1.5-flash`) |
+| `OPENROUTER_API_KEY` | OpenRouter API key; only free model routes are used |
 | `FLASK_DEBUG`     | `True`/`False`                               |
 | `PORT`            | Backend port (default `5000`)                |
 | `CORS_ORIGINS`    | Comma-separated list of allowed frontend origins |
@@ -196,7 +195,7 @@ From `frontend`: `npm run build`
 
 ## Error Handling
 
-- Backend: every route wraps external calls (`yfinance`, Gemini) in
+- Backend: every route wraps external calls (`yfinance`, OpenRouter) in
   try/except and returns structured JSON errors with proper status codes.
   Invalid tickers return `404`; upstream/API failures return `500`/`502`.
 - Frontend: an Axios interceptor normalizes all errors to `err.message`,
@@ -234,15 +233,14 @@ they aren't included in this scaffold since they depend on your own data.)
 
 1. Railway: deploy the repository with Root Directory `/backend`. Use start
    command `gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120`.
-   Dependencies come from `requirements.txt`. Set `GEMINI_API_KEY`, a model
-   available to your Google account in `GEMINI_MODEL`, and `FLASK_DEBUG=False`.
+   Dependencies come from `requirements.txt`. Set `OPENROUTER_API_KEY` and `FLASK_DEBUG=False`.
 2. Generate a public backend domain. Check `https://YOUR-BACKEND/api/health`:
    it should return `{"status":"ok"}`. `/` is not a frontend page on this API.
 3. Vercel: import the repository, choose Root Directory `frontend`, preset
    Vite, build `npm run build`, output `dist`. Set `VITE_API_BASE_URL` to
    `https://YOUR-BACKEND/api` before deploying. Redeploy after changing it.
 4. On Railway set `CORS_ORIGINS=https://YOUR-FRONTEND.vercel.app` (no path).
-   Multiple origins can be comma-separated. Keep the Gemini key on Railway.
+   Multiple origins can be comma-separated. Keep the OpenRouter key on the backend.
 5. For persistent watchlists/analyses, attach a Railway volume at `/data` and
    set `STORAGE_DIR=/data`. Otherwise deployment restarts can lose JSON data.
    Keep one worker and one replica with the current file storage design.
@@ -256,8 +254,36 @@ is `/api/dashboard/overview`. A 404 on these indicates the wrong server or URL.
 ### Current Vercel API connection
 
 Production frontend calls `/api` on its own origin. `frontend/vercel.json`
-proxies those requests to `https://tickerlyze-production.up.railway.app`.
+proxies those requests to `https://tickerlyze-backend.onrender.com`.
 `VITE_API_BASE_URL` now only applies during local development; remove the
-production variable to avoid confusion. If the Railway domain changes, update
+production variable to avoid confusion. If the backend domain changes, update
 `frontend/vercel.json`. This supersedes the direct-browser API setup above.
 Both Railway (dependency update) and Vercel (proxy/client update) need redeploying.
+
+### AI provider reliability
+
+See the free-only AI setup below. Raw provider errors are replaced with a
+clear availability notice; this is not a guarantee of fresh inference.
+
+The risk card can calculate the same historical indicators locally when
+price history arrives without `priceIndicators`, including during deployments.
+
+### Free-only AI research
+
+Set `OPENROUTER_API_KEY` in `backend/.env` locally, and in the backend's
+Render environment for deployment. Never put the key in frontend variables.
+The app requests `openrouter/free`, then at most one verified zero-priced
+`:free` model from OpenRouter's catalog if the first attempt fails. No paid
+models or Gemini calls are made. Catalog lookups are cached and attempts are
+bounded; quota responses back off instead of repeatedly consuming requests.
+
+Successful AI research is saved and reused for six hours. Re-run requests
+explicitly refresh it. Concurrent same-symbol generation is shared within a
+worker. If generation fails, the app returns dated saved research with a
+notice. Without saved research it shows an honest availability notice rather
+than a raw technical error or a fabricated AI answer. Free-provider capacity,
+usage limits, storage availability, and internet access still apply.
+
+These are AI summaries of the supplied stock data, not independent live web
+research. They do not invent missing numbers. On Render, use persistent
+storage if saved research must survive redeployments.

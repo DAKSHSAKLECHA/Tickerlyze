@@ -20,7 +20,7 @@ client.interceptors.response.use(
   (err) => {
     const message =
       err.response?.data?.error ||
-      err.message ||
+      (err.code === 'ECONNABORTED' ? 'The server took too long to respond. Please retry in a moment.' : err.message) ||
       'Something went wrong. Please try again.'
     return Promise.reject(new Error(message))
   }
@@ -38,7 +38,7 @@ export const stockApi = {
 }
 
 export const aiApi = {
-  analyze: (symbol) => client.post(`/ai/analyze/${symbol}`, null, { timeout: 60000 }).then((r) => r.data),
+  analyze: (symbol, refresh = false) => client.post(`/ai/analyze/${symbol}`, { refresh }, { timeout: 60000 }).then((r) => r.data),
   getRecent: (limit = 10) =>
     client.get('/ai/analyses', { params: { limit } }).then((r) => r.data),
   getForSymbol: (symbol, options = {}) => client.get(`/ai/analyses/${symbol}`, options).then((r) => r.data),

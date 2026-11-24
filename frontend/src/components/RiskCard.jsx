@@ -1,8 +1,10 @@
+import { useMemo } from 'react'
+import { calculatePriceIndicators } from './priceIndicators'
 import { Gauge } from 'lucide-react'
 import { Loading, ErrorBox } from './Common'
 
 export default function RiskCard({ history, loading, error }) {
-  const metrics = history?.priceIndicators
+  const metrics = useMemo(() => history?.priceIndicators ?? calculatePriceIndicators(history?.data), [history])
   const pct = (n) => Number.isFinite(n) ? `${n.toFixed(1)}%` : 'Unavailable'
   const rows = metrics ? [
     ['Daily Price Swings', pct(metrics.swing), 'Average daily move, up or down, over the available last three months.', `${metrics.swingStart} to ${metrics.end}`],
